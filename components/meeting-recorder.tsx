@@ -138,7 +138,8 @@ export function MeetingRecorder({ tasks, onMeetingComplete, theme, themeClasses 
       }
       toast.info("Processing audio...")
       console.log('Audio blob size:', audioBlob.size, 'type:', audioBlob.type)
-      const result = await ApiService.processAudio(audioBlob)
+      const apiService = new ApiService()
+      const result = await apiService.processAudio(audioBlob)
       const meeting: Meeting = {
         id: `meeting-${Date.now()}`,
         title: meetingTitle || `Project Meeting - ${new Date().toLocaleDateString()}`,
