@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export interface BackendProject {
   name: string;
@@ -18,61 +18,89 @@ export interface BackendResponse {
 }
 
 export class ApiService {
-  static async uploadExcel(file: File): Promise<BackendResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
+  private baseUrl: string
 
-    const response = await fetch(`${API_BASE_URL}/upload-excel`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to upload Excel file');
-    }
-
-    return await response.json();
+  constructor() {
+    this.baseUrl = API_BASE_URL
   }
 
-  static async processAudio(audioBlob: Blob): Promise<any> {
-    const formData = new FormData();
-    formData.append('audio_file', audioBlob, 'recording.wav');
+  async uploadExcel(file: File): Promise<any> {
+    const formData = new FormData()
+    formData.append('file', file)
 
-    const response = await fetch(`${API_BASE_URL}/process-audio`, {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}/upload-excel`, {
+        method: 'POST',
+        body: formData,
+      })
 
-    if (!response.ok) {
-      throw new Error('Failed to process audio');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error uploading Excel file:', error)
+      throw error
     }
-
-    return await response.json();
   }
 
-  static async updateExcel(updates: any[]): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/update-excel`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
+  async processAudio(audioBlob: Blob): Promise<any> {
+    const formData = new FormData()
+    formData.append('audio_file', audioBlob, 'recording.wav')
 
-    if (!response.ok) {
-      throw new Error('Failed to update Excel file');
+    try {
+      const response = await fetch(`${this.baseUrl}/process-audio`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error processing audio:', error)
+      throw error
     }
-
-    return await response.json();
   }
 
-  static async downloadExcel(): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/download-excel`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to download Excel file');
-    }
+  async updateExcel(updates: any[]): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/update-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      })
 
-    return await response.blob();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error updating Excel:', error)
+      throw error
+    }
+  }
+
+  async downloadExcel(): Promise<Blob> {
+    try {
+      const response = await fetch(`${this.baseUrl}/download-excel`, {
+        method: 'GET',
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.blob()
+    } catch (error) {
+      console.error('Error downloading Excel:', error)
+      throw error
+    }
   }
 } 

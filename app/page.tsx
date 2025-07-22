@@ -362,6 +362,8 @@ export default function ProjectManager() {
     },
   ]
 
+  const apiService = new ApiService()
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -375,7 +377,7 @@ export default function ProjectManager() {
 
     try {
       // Upload to backend
-      const response = await ApiService.uploadExcel(file)
+      const response = await apiService.uploadExcel(file)
       
       // Convert backend response to hierarchical format
       const hierarchicalTasks = convertBackendToHierarchicalTasks(response.projects)
@@ -408,7 +410,7 @@ export default function ProjectManager() {
 
   const handleDownloadExcel = async () => {
     try {
-      const blob = await ApiService.downloadExcel()
+      const blob = await apiService.downloadExcel()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -457,7 +459,7 @@ export default function ProjectManager() {
       const backendUpdate = convertV0ToBackendUpdate(taskId, updates, reason)
       
       // Send update to backend
-      await ApiService.updateExcel([backendUpdate])
+      await apiService.updateExcel([backendUpdate])
       
       // Update local state
       setTasks((prev) =>
