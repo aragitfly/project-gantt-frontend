@@ -51,7 +51,7 @@ export class ApiService {
 
   async processAudio(audioBlob: Blob): Promise<any> {
     const formData = new FormData()
-    formData.append('audio_file', audioBlob, 'recording.wav')
+    formData.append('audio_file', audioBlob, 'recording.webm')
 
     try {
       const response = await fetch(`${this.baseUrl}/process-audio`, {
