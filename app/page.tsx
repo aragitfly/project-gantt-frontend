@@ -386,10 +386,10 @@ export default function ProjectManager() {
       console.log('=== DEBUG INFO ===')
       console.log('Backend response:', response)
       console.log('Projects from backend:', response.projects.length)
-      console.log('Main tasks from backend:', response.projects.filter(p => p.is_title).length)
-      console.log('Sub tasks from backend:', response.projects.filter(p => !p.is_title).length)
-      console.log('Sample main tasks:', response.projects.filter(p => p.is_title).slice(0, 2))
-      console.log('Sample sub tasks:', response.projects.filter(p => !p.is_title).slice(0, 2))
+      console.log('Main tasks from backend:', response.projects.filter((p: any) => p.is_title).length)
+      console.log('Sub tasks from backend:', response.projects.filter((p: any) => !p.is_title).length)
+      console.log('Sample main tasks:', response.projects.filter((p: any) => p.is_title).slice(0, 2))
+      console.log('Sample sub tasks:', response.projects.filter((p: any) => !p.is_title).slice(0, 2))
       
       console.log('Hierarchical tasks after conversion:', hierarchicalTasks.length)
       console.log('Main tasks after conversion:', hierarchicalTasks.filter(t => t.level === 0).length)
@@ -439,16 +439,16 @@ export default function ProjectManager() {
   const handleMeetingComplete = (meeting: Meeting) => {
     setMeetings((prev) => [...prev, meeting])
 
-    const updatedTasks = tasks.map((task) => {
-      const proposal = meeting.taskProposals.find((p) => p.taskId === task.id)
-      if (proposal) {
-        return {
-          ...task,
-          proposedChanges: proposal,
+          const updatedTasks = tasks.map((task) => {
+        const proposal = meeting.taskProposals.find((p: TaskProposal) => p.taskId === task.id)
+        if (proposal) {
+          return {
+            ...task,
+            proposedChanges: proposal,
+          }
         }
-      }
-      return task
-    })
+        return task
+      })
 
     setTasks(updatedTasks)
   }
@@ -496,6 +496,48 @@ export default function ProjectManager() {
     } catch (error) {
       console.error('Error updating task in backend:', error)
       alert('Error updating task. Please try again.')
+    }
+  }
+
+  const handleReorderTasks = async (parentId: string, taskIds: string[]) => {
+    try {
+      // Create audit entries for the reorder
+      const auditEntries: AuditEntry[] = taskIds.map((taskId: string, index: number) => ({
+        id: `audit-${Date.now()}-reorder-${taskId}`,
+        timestamp: new Date(),
+        type: "manual",
+        field: "order",
+        oldValue: `Previous position in parent ${parentId}`,
+        newValue: `New position ${index + 1} in parent ${parentId}`,
+        reason: "Task reordered via drag and drop",
+      }))
+
+      // Update local state to reflect the new order
+      setTasks((prev) => {
+        const updatedTasks = [...prev]
+        
+        // Get all tasks that belong to this parent
+        const parentTasks = updatedTasks.filter(task => task.parentId === parentId && task.level === 1)
+        
+        // Reorder the tasks based on the new order
+        taskIds.forEach((taskId, newIndex) => {
+          const taskIndex = updatedTasks.findIndex(task => task.id === taskId)
+          if (taskIndex !== -1) {
+            // Add audit entry to the task
+            updatedTasks[taskIndex] = {
+              ...updatedTasks[taskIndex],
+              auditTrail: [...updatedTasks[taskIndex].auditTrail, auditEntries[newIndex]]
+            }
+          }
+        })
+
+        return updatedTasks
+      })
+
+      console.log('Successfully reordered tasks for parent', parentId)
+    } catch (error) {
+      console.error('Error reordering tasks:', error)
+      alert('Error reordering tasks. Please try again.')
     }
   }
 
@@ -815,6 +857,7 @@ export default function ProjectManager() {
                   allTasks={tasks}
                   onTaskUpdate={handleTaskUpdate}
                   onToggleExpansion={toggleTaskExpansion}
+                  onReorderTasks={handleReorderTasks}
                   getPriorityColor={getPriorityColor}
                   getStatusColor={getStatusColor}
                   formatDate={formatDate}
