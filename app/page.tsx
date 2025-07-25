@@ -848,7 +848,6 @@ export default function ProjectManager() {
                 <DynamicGanttChart
                   tasks={getVisibleTasks()}
                   allTasks={tasks}
-                  meetings={meetings}
                   onTaskUpdate={handleTaskUpdate}
                   onToggleExpansion={toggleTaskExpansion}
                   getPriorityColor={getPriorityColor}

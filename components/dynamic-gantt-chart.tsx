@@ -8,9 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   ZoomIn,
   ZoomOut,
@@ -21,23 +18,12 @@ import {
   RotateCcw,
   Download,
   Filter,
-  AlertTriangle,
-  CheckCircle,
-  TrendingUp,
-  Check,
-  X,
-  Edit,
-  Save,
-  SkipForward,
-  Brain,
-  Clock,
 } from "lucide-react"
-import type { Task, DesignTheme, Meeting, TaskProposal } from "../app/page"
+import type { Task, DesignTheme } from "../app/page"
 
 interface DynamicGanttChartProps {
   tasks: Task[]
   allTasks: Task[]
-  meetings: Meeting[]
   onTaskUpdate: (taskId: string, updates: Partial<Task>, reason: string) => void
   onToggleExpansion: (taskId: string) => void
   getPriorityColor: (priority: string) => string
@@ -61,7 +47,6 @@ type DragState = {
 export function DynamicGanttChart({
   tasks,
   allTasks,
-  meetings,
   onTaskUpdate,
   onToggleExpansion,
   getPriorityColor,
@@ -81,29 +66,11 @@ export function DynamicGanttChart({
   })
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterPriority, setFilterPriority] = useState<string>("all")
-  const [showProposals, setShowProposals] = useState(true)
-  const [editingProposal, setEditingProposal] = useState<string | null>(null)
-  const [editedProposal, setEditedProposal] = useState<TaskProposal | null>(null)
-  const [approvedProposals, setApprovedProposals] = useState<Set<string>>(new Set())
-  const [skippedProposals, setSkippedProposals] = useState<Set<string>>(new Set())
 
   const ganttRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const chartScrollRef = useRef<HTMLDivElement>(null)
-
-  // Get all task proposals from meetings
-  const getAllTaskProposals = useCallback(() => {
-    return meetings.flatMap((meeting) => meeting.taskProposals)
-  }, [meetings])
-
-  // Get proposals for a specific task
-  const getTaskProposals = useCallback(
-    (taskId: string) => {
-      return getAllTaskProposals().filter((proposal) => proposal.taskId === taskId)
-    },
-    [getAllTaskProposals],
-  )
 
   // Calculate time range and scale
   const getTimeRange = useCallback(() => {
@@ -127,7 +94,7 @@ export function DynamicGanttChart({
   // Calculate pixel width per day based on view mode and zoom
   const getPixelsPerDay = useCallback(() => {
     const basePixels = {
-      day: 80,
+      day: 80, // Increased from 60 for better daily view text display
       week: 20,
       month: 8,
       quarter: 3,
@@ -138,7 +105,7 @@ export function DynamicGanttChart({
   const pixelsPerDay = getPixelsPerDay()
   const totalWidth = totalDays * pixelsPerDay
 
-  // Synchronize horizontal scrolling between timeline and chart
+  // Synchronize horizontal scrolling between timeline and chart (timeline portion only)
   useEffect(() => {
     const timelineScrollElement = timelineScrollRef.current
     const chartScrollElement = chartScrollRef.current
@@ -166,7 +133,7 @@ export function DynamicGanttChart({
     }
   }, [])
 
-  // Generate timeline markers
+  // Generate timeline markers with improved daily view formatting
   const generateTimelineMarkers = useCallback(() => {
     const markers = []
     const current = new Date(timeStart)
@@ -181,10 +148,12 @@ export function DynamicGanttChart({
       const daysSinceStart = Math.floor((current.getTime() - timeStart.getTime()) / (24 * 60 * 60 * 1000))
       const x = daysSinceStart * pixelsPerDay
 
+      // Improved formatting for daily view
       let label = ""
       let sublabel = ""
 
       if (viewMode === "day") {
+        // For daily view, show the full date in a compact format
         label = current.toLocaleDateString("en-US", {
           month: "short",
           day: "2-digit",
@@ -223,7 +192,7 @@ export function DynamicGanttChart({
       const endDays = Math.floor((task.endDate.getTime() - timeStart.getTime()) / (24 * 60 * 60 * 1000))
 
       const left = startDays * pixelsPerDay
-      const width = Math.max((endDays - startDays) * pixelsPerDay, 20)
+      const width = Math.max((endDays - startDays) * pixelsPerDay, 20) // Minimum width of 20px
 
       return { left, width }
     },
@@ -267,9 +236,35 @@ export function DynamicGanttChart({
       const deltaX = e.clientX - dragState.startX
       const deltaDays = Math.round(deltaX / pixelsPerDay)
 
+      const task = tasks.find((t) => t.id === dragState.taskId)
+      if (!task) return
+
+      let newStart = new Date(dragState.originalStart)
+      let newEnd = new Date(dragState.originalEnd)
+
+      switch (dragState.dragType) {
+        case "move":
+          newStart.setDate(newStart.getDate() + deltaDays)
+          newEnd.setDate(newEnd.getDate() + deltaDays)
+          break
+        case "resize-start":
+          newStart.setDate(newStart.getDate() + deltaDays)
+          if (newStart >= newEnd) {
+            newStart = new Date(newEnd.getTime() - 24 * 60 * 60 * 1000) // Minimum 1 day
+          }
+          break
+        case "resize-end":
+          newEnd.setDate(newEnd.getDate() + deltaDays)
+          if (newEnd <= newStart) {
+            newEnd = new Date(newStart.getTime() + 24 * 60 * 60 * 1000) // Minimum 1 day
+          }
+          break
+      }
+
+      // Store the current delta for use in mouseUp
       setDragState((prev) => ({ ...prev, currentDeltaDays: deltaDays }))
     },
-    [dragState, pixelsPerDay],
+    [dragState, pixelsPerDay, tasks],
   )
 
   const handleMouseUp = useCallback(() => {
@@ -278,6 +273,7 @@ export function DynamicGanttChart({
     const task = tasks.find((t) => t.id === dragState.taskId)
     if (!task) return
 
+    // Use the stored delta from mouse move
     const deltaDays = dragState.currentDeltaDays || 0
 
     let newStart = new Date(dragState.originalStart)
@@ -305,6 +301,7 @@ export function DynamicGanttChart({
         break
     }
 
+    // Update the task
     onTaskUpdate(
       dragState.taskId,
       { startDate: newStart, endDate: newEnd, duration },
@@ -332,63 +329,6 @@ export function DynamicGanttChart({
     }
   }, [dragState.isDragging, handleMouseMove, handleMouseUp])
 
-  // Proposal management functions
-  const handleEditProposal = (proposal: TaskProposal) => {
-    setEditingProposal(proposal.id)
-    setEditedProposal({ ...proposal })
-  }
-
-  const handleSaveProposal = () => {
-    if (!editedProposal) return
-    console.log("Saving proposal:", editedProposal)
-    setEditingProposal(null)
-    setEditedProposal(null)
-  }
-
-  const handleCancelEdit = () => {
-    setEditingProposal(null)
-    setEditedProposal(null)
-  }
-
-  const handleApproveProposal = (proposal: TaskProposal) => {
-    console.log("Approving proposal:", proposal)
-
-    // Apply the proposal to the actual task
-    const updates: Partial<Task> = {}
-    if (proposal.proposedStatus) updates.status = proposal.proposedStatus
-    if (proposal.proposedProgress !== undefined) updates.progress = proposal.proposedProgress
-    if (proposal.proposedEndDate) updates.endDate = proposal.proposedEndDate
-
-    onTaskUpdate(proposal.taskId, updates, `Applied AI proposal: ${proposal.reason}`)
-
-    // Mark as approved
-    const newApproved = new Set(approvedProposals)
-    newApproved.add(proposal.id)
-    setApprovedProposals(newApproved)
-
-    // Remove from skipped if it was previously skipped
-    const newSkipped = new Set(skippedProposals)
-    newSkipped.delete(proposal.id)
-    setSkippedProposals(newSkipped)
-  }
-
-  const handleSkipProposal = (proposalId: string) => {
-    const newSkipped = new Set(skippedProposals)
-    newSkipped.add(proposalId)
-    setSkippedProposals(newSkipped)
-
-    const newApproved = new Set(approvedProposals)
-    newApproved.delete(proposalId)
-    setApprovedProposals(newApproved)
-  }
-
-  const getProposalIcon = (proposal: TaskProposal) => {
-    if (proposal.proposedStatus === "Completed") return <CheckCircle className="h-3 w-3 text-green-600" />
-    if (proposal.proposedStatus === "Delayed" || proposal.proposedStatus === "Blocked")
-      return <AlertTriangle className="h-3 w-3 text-orange-600" />
-    return <TrendingUp className="h-3 w-3 text-blue-600" />
-  }
-
   const timelineMarkers = generateTimelineMarkers()
   const filteredTasks = getFilteredTasks()
 
@@ -401,6 +341,7 @@ export function DynamicGanttChart({
   }
 
   const exportGantt = () => {
+    // This would implement export functionality
     console.log("Exporting Gantt chart...")
   }
 
@@ -411,18 +352,10 @@ export function DynamicGanttChart({
           <div>
             <CardTitle>Dynamic Gantt Chart</CardTitle>
             <CardDescription className={theme === "dark" ? "text-gray-300" : ""}>
-              Interactive timeline with drag-and-drop, resizing, and AI task proposals
+              Interactive timeline with drag-and-drop, resizing, and real-time updates
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant={showProposals ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowProposals(!showProposals)}
-            >
-              <Brain className="h-4 w-4 mr-2" />
-              AI Proposals
-            </Button>
             <Button variant="outline" size="sm" onClick={resetView}>
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset View
@@ -518,7 +451,7 @@ export function DynamicGanttChart({
           <div className={`border-b bg-gray-50 ${theme === "dark" ? "bg-gray-800" : ""}`} style={{ minHeight: "60px" }}>
             <div className="flex">
               {/* Task names column - Fixed */}
-              <div className="w-80 border-r bg-white dark:bg-gray-900 flex-shrink-0 p-2 z-10">
+              <div className="w-64 border-r bg-white dark:bg-gray-900 flex-shrink-0 p-2 z-10">
                 <div className="font-medium text-sm">Tasks</div>
               </div>
 
@@ -600,355 +533,77 @@ export function DynamicGanttChart({
           <div className="overflow-y-auto max-h-96" style={{ cursor: dragState.isDragging ? "grabbing" : "default" }}>
             <div className="flex">
               {/* Task names column - Fixed horizontally, scrolls vertically with content */}
-              <div className="w-80 border-r bg-white dark:bg-gray-900 flex-shrink-0">
+              <div className="w-64 border-r bg-white dark:bg-gray-900 flex-shrink-0">
                 {filteredTasks
                   .filter((task) => task.level === 0)
-                  .map((mainTask) => {
-                    const taskProposals = getTaskProposals(mainTask.id)
-                    const pendingProposals = taskProposals.filter(
-                      (p) => !approvedProposals.has(p.id) && !skippedProposals.has(p.id),
-                    )
-
-                    return (
-                      <div key={mainTask.id}>
-                        {/* Main task row */}
-                        <div
-                          className={`p-3 border-b hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                            selectedTask === mainTask.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                          }`}
-                          style={{ minHeight: "60px" }}
-                          onClick={() => setSelectedTask(selectedTask === mainTask.id ? null : mainTask.id)}
-                        >
-                          <div className="flex items-start gap-2 h-full">
-                            {allTasks.some((t) => t.parentId === mainTask.id) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-4 w-4 p-0 mt-1"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onToggleExpansion(mainTask.id)
-                                }}
-                              >
-                                {mainTask.isExpanded ? (
-                                  <ChevronDown className="h-3 w-3" />
-                                ) : (
-                                  <ChevronRight className="h-3 w-3" />
-                                )}
-                              </Button>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm truncate mb-1">{mainTask.name}</div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className={getStatusColor(mainTask.status)}>
-                                  {mainTask.status}
-                                </Badge>
-                                <div className={`w-2 h-2 rounded-full ${getPriorityColor(mainTask.priority)}`} />
-                              </div>
-
-                              {/* AI Proposals integrated into task row */}
-                              {showProposals && pendingProposals.length > 0 && (
-                                <div className="space-y-1">
-                                  {pendingProposals.slice(0, 2).map((proposal) => (
-                                    <div
-                                      key={proposal.id}
-                                      className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-xs"
-                                    >
-                                      <div className="flex items-center gap-1">
-                                        {getProposalIcon(proposal)}
-                                        <span className="font-medium">AI:</span>
-                                      </div>
-                                      <span className="flex-1 truncate">{proposal.reason}</span>
-                                      <div className="flex items-center gap-1">
-                                        <Popover>
-                                          <PopoverTrigger asChild>
-                                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
-                                              <Edit className="h-3 w-3" />
-                                            </Button>
-                                          </PopoverTrigger>
-                                          <PopoverContent className="w-80" align="start">
-                                            <div className="space-y-3">
-                                              <div className="flex items-center gap-2">
-                                                <Brain className="h-4 w-4 text-orange-500" />
-                                                <span className="font-medium text-sm">AI Task Proposal</span>
-                                                <Badge variant="outline" className="text-xs">
-                                                  {Math.round(proposal.confidence * 100)}% confidence
-                                                </Badge>
-                                              </div>
-
-                                              {editingProposal === proposal.id ? (
-                                                // Edit mode
-                                                <div className="space-y-3">
-                                                  <div>
-                                                    <label className="text-sm font-medium">Reason:</label>
-                                                    <Textarea
-                                                      value={editedProposal?.reason || proposal.reason}
-                                                      onChange={(e) =>
-                                                        setEditedProposal((prev) =>
-                                                          prev ? { ...prev, reason: e.target.value } : null,
-                                                        )
-                                                      }
-                                                      className="text-sm mt-1"
-                                                      rows={2}
-                                                    />
-                                                  </div>
-
-                                                  <div className="flex items-center gap-4 text-xs">
-                                                    {(editedProposal?.proposedStatus || proposal.proposedStatus) && (
-                                                      <div className="flex items-center gap-2">
-                                                        <span>Status:</span>
-                                                        <Select
-                                                          value={
-                                                            editedProposal?.proposedStatus || proposal.proposedStatus
-                                                          }
-                                                          onValueChange={(value) =>
-                                                            setEditedProposal((prev) =>
-                                                              prev ? { ...prev, proposedStatus: value as any } : null,
-                                                            )
-                                                          }
-                                                        >
-                                                          <SelectTrigger className="w-32 h-7">
-                                                            <SelectValue />
-                                                          </SelectTrigger>
-                                                          <SelectContent>
-                                                            <SelectItem value="Not Started">Not Started</SelectItem>
-                                                            <SelectItem value="In Progress">In Progress</SelectItem>
-                                                            <SelectItem value="Completed">Completed</SelectItem>
-                                                            <SelectItem value="Delayed">Delayed</SelectItem>
-                                                            <SelectItem value="Blocked">Blocked</SelectItem>
-                                                          </SelectContent>
-                                                        </Select>
-                                                      </div>
-                                                    )}
-                                                    {(editedProposal?.proposedProgress !== undefined ||
-                                                      proposal.proposedProgress !== undefined) && (
-                                                      <div className="flex items-center gap-2">
-                                                        <span>Progress:</span>
-                                                        <Input
-                                                          type="number"
-                                                          min="0"
-                                                          max="100"
-                                                          value={
-                                                            editedProposal?.proposedProgress ??
-                                                            proposal.proposedProgress
-                                                          }
-                                                          onChange={(e) =>
-                                                            setEditedProposal((prev) =>
-                                                              prev
-                                                                ? {
-                                                                    ...prev,
-                                                                    proposedProgress: Number.parseInt(e.target.value),
-                                                                  }
-                                                                : null,
-                                                            )
-                                                          }
-                                                          className="w-16 h-7"
-                                                        />
-                                                        <span>%</span>
-                                                      </div>
-                                                    )}
-                                                  </div>
-
-                                                  <div className="flex gap-2">
-                                                    <Button size="sm" onClick={handleSaveProposal}>
-                                                      <Save className="h-3 w-3 mr-1" />
-                                                      Save
-                                                    </Button>
-                                                    <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                                                      <X className="h-3 w-3 mr-1" />
-                                                      Cancel
-                                                    </Button>
-                                                  </div>
-                                                </div>
-                                              ) : (
-                                                // View mode
-                                                <div className="space-y-3">
-                                                  <p className="text-sm text-muted-foreground">{proposal.reason}</p>
-
-                                                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                                    {proposal.proposedStatus && (
-                                                      <span>Status → {proposal.proposedStatus}</span>
-                                                    )}
-                                                    {proposal.proposedProgress !== undefined && (
-                                                      <span>Progress → {proposal.proposedProgress}%</span>
-                                                    )}
-                                                    {proposal.proposedEndDate && (
-                                                      <span>End Date → {formatDate(proposal.proposedEndDate)}</span>
-                                                    )}
-                                                  </div>
-
-                                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                    <Clock className="h-3 w-3" />
-                                                    <span>{formatDate(proposal.timestamp)}</span>
-                                                  </div>
-
-                                                  <div className="flex gap-2">
-                                                    <Button
-                                                      size="sm"
-                                                      onClick={() => handleApproveProposal(proposal)}
-                                                      className="bg-green-600 hover:bg-green-700"
-                                                    >
-                                                      <Check className="h-3 w-3 mr-1" />
-                                                      Approve
-                                                    </Button>
-                                                    <Button
-                                                      size="sm"
-                                                      variant="outline"
-                                                      onClick={() => handleSkipProposal(proposal.id)}
-                                                    >
-                                                      <SkipForward className="h-3 w-3 mr-1" />
-                                                      Skip
-                                                    </Button>
-                                                    <Button
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      onClick={() => handleEditProposal(proposal)}
-                                                    >
-                                                      <Edit className="h-3 w-3 mr-1" />
-                                                      Edit
-                                                    </Button>
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          </PopoverContent>
-                                        </Popover>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 w-5 p-0 text-green-600 hover:text-green-700"
-                                          onClick={() => handleApproveProposal(proposal)}
-                                        >
-                                          <Check className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 w-5 p-0 text-gray-600 hover:text-gray-700"
-                                          onClick={() => handleSkipProposal(proposal.id)}
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {pendingProposals.length > 2 && (
-                                    <div className="text-xs text-muted-foreground">
-                                      +{pendingProposals.length - 2} more proposals
-                                    </div>
-                                  )}
-                                </div>
+                  .map((mainTask) => (
+                    <div key={mainTask.id}>
+                      {/* Main task row */}
+                      <div
+                        className={`p-3 border-b hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                          selectedTask === mainTask.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                        }`}
+                        style={{ height: "60px" }}
+                        onClick={() => setSelectedTask(selectedTask === mainTask.id ? null : mainTask.id)}
+                      >
+                        <div className="flex items-center gap-2 h-full">
+                          {allTasks.some((t) => t.parentId === mainTask.id) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-4 w-4 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onToggleExpansion(mainTask.id)
+                              }}
+                            >
+                              {mainTask.isExpanded ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
                               )}
-
-                              {/* Show approved/skipped proposals summary */}
-                              {showProposals && taskProposals.length > 0 && (
-                                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                                  {taskProposals.filter((p) => approvedProposals.has(p.id)).length > 0 && (
-                                    <Badge variant="default" className="bg-green-600 text-xs">
-                                      {taskProposals.filter((p) => approvedProposals.has(p.id)).length} applied
-                                    </Badge>
-                                  )}
-                                  {taskProposals.filter((p) => skippedProposals.has(p.id)).length > 0 && (
-                                    <Badge variant="secondary" className="bg-gray-500 text-xs">
-                                      {taskProposals.filter((p) => skippedProposals.has(p.id)).length} skipped
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
+                            </Button>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{mainTask.name}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className={getStatusColor(mainTask.status)}>
+                                {mainTask.status}
+                              </Badge>
+                              <div className={`w-2 h-2 rounded-full ${getPriorityColor(mainTask.priority)}`} />
                             </div>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Sub tasks */}
-                        {mainTask.isExpanded &&
-                          allTasks
-                            .filter((task) => task.parentId === mainTask.id)
-                            .map((subTask) => {
-                              const subTaskProposals = getTaskProposals(subTask.id)
-                              const pendingSubProposals = subTaskProposals.filter(
-                                (p) => !approvedProposals.has(p.id) && !skippedProposals.has(p.id),
-                              )
-
-                              return (
-                                <div
-                                  key={subTask.id}
-                                  className={`p-3 pl-8 border-b hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                                    selectedTask === subTask.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                                  }`}
-                                  style={{ minHeight: "60px" }}
-                                  onClick={() => setSelectedTask(selectedTask === subTask.id ? null : subTask.id)}
-                                >
-                                  <div className="flex items-start h-full">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-sm truncate mb-1">{subTask.name}</div>
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <Badge variant="outline" className={getStatusColor(subTask.status)}>
-                                          {subTask.status}
-                                        </Badge>
-                                        <div className={`w-2 h-2 rounded-full ${getPriorityColor(subTask.priority)}`} />
-                                      </div>
-
-                                      {/* AI Proposals for sub tasks */}
-                                      {showProposals && pendingSubProposals.length > 0 && (
-                                        <div className="space-y-1">
-                                          {pendingSubProposals.slice(0, 1).map((proposal) => (
-                                            <div
-                                              key={proposal.id}
-                                              className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded text-xs"
-                                            >
-                                              <div className="flex items-center gap-1">
-                                                {getProposalIcon(proposal)}
-                                                <span className="font-medium">AI:</span>
-                                              </div>
-                                              <span className="flex-1 truncate">{proposal.reason}</span>
-                                              <div className="flex items-center gap-1">
-                                                <Button
-                                                  variant="ghost"
-                                                  size="sm"
-                                                  className="h-5 w-5 p-0 text-green-600 hover:text-green-700"
-                                                  onClick={() => handleApproveProposal(proposal)}
-                                                >
-                                                  <Check className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                  variant="ghost"
-                                                  size="sm"
-                                                  className="h-5 w-5 p-0 text-gray-600 hover:text-gray-700"
-                                                  onClick={() => handleSkipProposal(proposal.id)}
-                                                >
-                                                  <X className="h-3 w-3" />
-                                                </Button>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-
-                                      {/* Show approved/skipped proposals summary for sub tasks */}
-                                      {showProposals && subTaskProposals.length > 0 && (
-                                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                                          {subTaskProposals.filter((p) => approvedProposals.has(p.id)).length > 0 && (
-                                            <Badge variant="default" className="bg-green-600 text-xs">
-                                              {subTaskProposals.filter((p) => approvedProposals.has(p.id)).length}{" "}
-                                              applied
-                                            </Badge>
-                                          )}
-                                          {subTaskProposals.filter((p) => skippedProposals.has(p.id)).length > 0 && (
-                                            <Badge variant="secondary" className="bg-gray-500 text-xs">
-                                              {subTaskProposals.filter((p) => skippedProposals.has(p.id)).length}{" "}
-                                              skipped
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
+                      {/* Sub tasks */}
+                      {mainTask.isExpanded &&
+                        allTasks
+                          .filter((task) => task.parentId === mainTask.id)
+                          .map((subTask) => (
+                            <div
+                              key={subTask.id}
+                              className={`p-3 pl-8 border-b hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                                selectedTask === subTask.id ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                              }`}
+                              style={{ height: "60px" }}
+                              onClick={() => setSelectedTask(selectedTask === subTask.id ? null : subTask.id)}
+                            >
+                              <div className="flex items-center h-full">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{subTask.name}</div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className={getStatusColor(subTask.status)}>
+                                      {subTask.status}
+                                    </Badge>
+                                    <div className={`w-2 h-2 rounded-full ${getPriorityColor(subTask.priority)}`} />
                                   </div>
                                 </div>
-                              )
-                            })}
-                      </div>
-                    )
-                  })}
+                              </div>
+                            </div>
+                          ))}
+                    </div>
+                  ))}
               </div>
 
               {/* Gantt bars - Scrollable horizontally, aligned with tasks */}
@@ -979,23 +634,14 @@ export function DynamicGanttChart({
                   {/* Task bars */}
                   {(() => {
                     let currentRowIndex = 0
+                    const rowHeight = 60
 
                     return filteredTasks
                       .filter((task) => task.level === 0)
                       .map((mainTask) => {
                         const mainPosition = getTaskPosition(mainTask)
                         const subTasks = allTasks.filter((t) => t.parentId === mainTask.id)
-                        const taskProposals = getTaskProposals(mainTask.id)
-                        const pendingProposals = taskProposals.filter(
-                          (p) => !approvedProposals.has(p.id) && !skippedProposals.has(p.id),
-                        )
-
-                        // Calculate row height based on content
-                        const baseHeight = 60
-                        const proposalHeight = showProposals ? pendingProposals.length * 25 : 0
-                        const summaryHeight = showProposals && taskProposals.length > 0 ? 20 : 0
-                        const mainRowHeight = Math.max(baseHeight, baseHeight + proposalHeight + summaryHeight)
-                        const mainRowTop = currentRowIndex * mainRowHeight + 15
+                        const mainRowTop = currentRowIndex * rowHeight + 15
 
                         const result = (
                           <div key={`bars-${mainTask.id}`}>
@@ -1054,20 +700,7 @@ export function DynamicGanttChart({
                             {mainTask.isExpanded &&
                               subTasks.map((subTask, subIndex) => {
                                 const subPosition = getTaskPosition(subTask)
-                                const subTaskProposals = getTaskProposals(subTask.id)
-                                const pendingSubProposals = subTaskProposals.filter(
-                                  (p) => !approvedProposals.has(p.id) && !skippedProposals.has(p.id),
-                                )
-
-                                // Calculate sub task row height
-                                const subBaseHeight = 60
-                                const subProposalHeight = showProposals ? pendingSubProposals.length * 25 : 0
-                                const subSummaryHeight = showProposals && subTaskProposals.length > 0 ? 20 : 0
-                                const subRowHeight = Math.max(
-                                  subBaseHeight,
-                                  subBaseHeight + subProposalHeight + subSummaryHeight,
-                                )
-                                const subRowTop = mainRowTop + mainRowHeight + subIndex * subRowHeight
+                                const subRowTop = mainRowTop + rowHeight + subIndex * rowHeight
 
                                 return (
                                   <div
@@ -1132,7 +765,7 @@ export function DynamicGanttChart({
                       })
                   })()}
 
-                  {/* Dependencies */}
+                  {/* Dependencies (simplified - would need more complex logic for real dependencies) */}
                   {filteredTasks
                     .filter((task) => task.dependencies && task.dependencies.length > 0)
                     .map((task) => {
@@ -1178,120 +811,69 @@ export function DynamicGanttChart({
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Task details panel */}
-        {selectedTask &&
-          (() => {
-            const task = tasks.find((t) => t.id === selectedTask)
-            if (!task) return null
+          {/* Task details panel */}
+          {selectedTask &&
+            (() => {
+              const task = tasks.find((t) => t.id === selectedTask)
+              if (!task) return null
 
-            const taskProposals = getTaskProposals(task.id)
-
-            return (
-              <div className="mt-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
-                <h4 className="font-medium mb-2">Task Details: {task.name}</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                  <div>
-                    <span className="font-medium">Start:</span> {formatDate(task.startDate)}
-                  </div>
-                  <div>
-                    <span className="font-medium">End:</span> {formatDate(task.endDate)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Duration:</span> {task.duration} days
-                  </div>
-                  <div>
-                    <span className="font-medium">Progress:</span> {task.progress}%
-                  </div>
-                  <div>
-                    <span className="font-medium">Status:</span>
-                    <Badge variant="outline" className={`ml-2 ${getStatusColor(task.status)}`}>
-                      {task.status}
-                    </Badge>
-                  </div>
-                  <div>
-                    <span className="font-medium">Priority:</span>
-                    <div className={`inline-block w-3 h-3 rounded-full ml-2 ${getPriorityColor(task.priority)}`} />
-                    <span className="ml-1">{task.priority}</span>
-                  </div>
-                  {task.assignee && (
+              return (
+                <div className="mt-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <h4 className="font-medium mb-2">Task Details: {task.name}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="font-medium">Assignee:</span> {task.assignee}
+                      <span className="font-medium">Start:</span> {formatDate(task.startDate)}
                     </div>
-                  )}
-                </div>
-
-                {/* AI Proposals for selected task */}
-                {taskProposals.length > 0 && (
-                  <div>
-                    <h5 className="font-medium mb-2 flex items-center gap-2">
-                      <Brain className="h-4 w-4 text-orange-500" />
-                      AI Proposals ({taskProposals.length})
-                    </h5>
-                    <div className="space-y-2">
-                      {taskProposals.map((proposal) => (
-                        <div
-                          key={proposal.id}
-                          className={`p-3 rounded-lg border text-sm ${
-                            approvedProposals.has(proposal.id)
-                              ? "bg-green-50 border-green-200"
-                              : skippedProposals.has(proposal.id)
-                                ? "bg-gray-100 border-gray-300 opacity-60"
-                                : "bg-orange-50 border-orange-200"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              {getProposalIcon(proposal)}
-                              <span className="font-medium">{Math.round(proposal.confidence * 100)}% confidence</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              {formatDate(proposal.timestamp)}
-                            </div>
-                          </div>
-                          <p className="text-muted-foreground mb-2">{proposal.reason}</p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            {proposal.proposedStatus && <span>Status → {proposal.proposedStatus}</span>}
-                            {proposal.proposedProgress !== undefined && (
-                              <span>Progress → {proposal.proposedProgress}%</span>
-                            )}
-                            {proposal.proposedEndDate && <span>End Date → {formatDate(proposal.proposedEndDate)}</span>}
-                          </div>
-                        </div>
-                      ))}
+                    <div>
+                      <span className="font-medium">End:</span> {formatDate(task.endDate)}
                     </div>
+                    <div>
+                      <span className="font-medium">Duration:</span> {task.duration} days
+                    </div>
+                    <div>
+                      <span className="font-medium">Progress:</span> {task.progress}%
+                    </div>
+                    <div>
+                      <span className="font-medium">Status:</span>
+                      <Badge variant="outline" className={`ml-2 ${getStatusColor(task.status)}`}>
+                        {task.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="font-medium">Priority:</span>
+                      <div className={`inline-block w-3 h-3 rounded-full ml-2 ${getPriorityColor(task.priority)}`} />
+                      <span className="ml-1">{task.priority}</span>
+                    </div>
+                    {task.assignee && (
+                      <div>
+                        <span className="font-medium">Assignee:</span> {task.assignee}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })()}
+                </div>
+              )
+            })()}
 
-        {/* Legend */}
-        <div className="mt-4 flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
-          <div className="flex items-center gap-2">
-            <Move className="h-4 w-4" />
-            <span>Drag to move</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Resize className="h-4 w-4" />
-            <span>Drag edges to resize</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-2 bg-blue-500 rounded" />
-            <span>Today</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-2 bg-gray-200 rounded" />
-            <span>Weekend</span>
-          </div>
-          {showProposals && (
+          {/* Legend */}
+          <div className="mt-4 flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
             <div className="flex items-center gap-2">
-              <Brain className="h-4 w-4 text-orange-500" />
-              <span>AI Proposals</span>
+              <Move className="h-4 w-4" />
+              <span>Drag to move</span>
             </div>
-          )}
+            <div className="flex items-center gap-2">
+              <Resize className="h-4 w-4" />
+              <span>Drag edges to resize</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-2 bg-blue-500 rounded" />
+              <span>Today</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-2 bg-gray-200 rounded" />
+              <span>Weekend</span>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
