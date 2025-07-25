@@ -7,15 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { FileSpreadsheet, List, BarChart3, Upload, Mic, FileText, Download } from "lucide-react"
-import * as XLSX from "xlsx"
+import { FileSpreadsheet, List, BarChart3, Upload, Mic, FileText } from "lucide-react"
 import { MeetingRecorder } from "../components/meeting-recorder"
 import { TaskManager } from "../components/task-manager"
 import { MeetingSummary } from "../components/meeting-summary"
 import { DesignSelector } from "../components/design-selector"
 import { ApiService } from "../lib/api"
 import { convertBackendToHierarchicalTasks, convertV0ToBackendUpdate } from "../lib/data-converter"
+import { DynamicGanttChart } from "../components/dynamic-gantt-chart"
 
 export interface Task {
   id: string
@@ -368,8 +367,8 @@ export default function ProjectManager() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      alert('Please upload an Excel file (.xlsx or .xls)')
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      alert("Please upload an Excel file (.xlsx or .xls)")
       return
     }
 
@@ -378,28 +377,28 @@ export default function ProjectManager() {
     try {
       // Upload to backend
       const response = await apiService.uploadExcel(file)
-      
+
       // Convert backend response to hierarchical format
       const hierarchicalTasks = convertBackendToHierarchicalTasks(response.projects)
-      
+
       // Debug: Log the data at each step
-      console.log('=== DEBUG INFO ===')
-      console.log('Backend response:', response)
-      console.log('Projects from backend:', response.projects.length)
-      console.log('Main tasks from backend:', response.projects.filter((p: any) => p.is_title).length)
-      console.log('Sub tasks from backend:', response.projects.filter((p: any) => !p.is_title).length)
-      console.log('Sample main tasks:', response.projects.filter((p: any) => p.is_title).slice(0, 2))
-      console.log('Sample sub tasks:', response.projects.filter((p: any) => !p.is_title).slice(0, 2))
-      
-      console.log('Hierarchical tasks after conversion:', hierarchicalTasks.length)
-      console.log('Main tasks after conversion:', hierarchicalTasks.filter(t => t.level === 0).length)
-      console.log('Sample hierarchical tasks:', hierarchicalTasks.slice(0, 2))
-      console.log('=== END DEBUG ===')
-      
+      console.log("=== DEBUG INFO ===")
+      console.log("Backend response:", response)
+      console.log("Projects from backend:", response.projects.length)
+      console.log("Main tasks from backend:", response.projects.filter((p) => p.is_title).length)
+      console.log("Sub tasks from backend:", response.projects.filter((p) => !p.is_title).length)
+      console.log("Sample main tasks:", response.projects.filter((p) => p.is_title).slice(0, 2))
+      console.log("Sample sub tasks:", response.projects.filter((p) => !p.is_title).slice(0, 2))
+
+      console.log("Hierarchical tasks after conversion:", hierarchicalTasks.length)
+      console.log("Main tasks after conversion:", hierarchicalTasks.filter((t) => t.level === 0).length)
+      console.log("Sample hierarchical tasks:", hierarchicalTasks.slice(0, 2))
+      console.log("=== END DEBUG ===")
+
       setTasks(hierarchicalTasks)
     } catch (error) {
-      console.error('Error uploading Excel file:', error)
-      alert('Error uploading Excel file. Please ensure the backend is running and try again.')
+      console.error("Error uploading Excel file:", error)
+      alert("Error uploading Excel file. Please ensure the backend is running and try again.")
     }
   }
 
@@ -412,18 +411,18 @@ export default function ProjectManager() {
     try {
       const blob = await apiService.downloadExcel()
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
+      const a = document.createElement("a")
       a.href = url
-      a.download = 'updated_gantt_chart.xlsx'
+      a.download = "updated_gantt_chart.xlsx"
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
-      console.log('Successfully downloaded updated Excel file')
+
+      console.log("Successfully downloaded updated Excel file")
     } catch (error) {
-      console.error('Error downloading Excel file:', error)
-      alert('Error downloading Excel file. Please try again.')
+      console.error("Error downloading Excel file:", error)
+      alert("Error downloading Excel file. Please try again.")
     }
   }
 
@@ -439,16 +438,16 @@ export default function ProjectManager() {
   const handleMeetingComplete = (meeting: Meeting) => {
     setMeetings((prev) => [...prev, meeting])
 
-          const updatedTasks = tasks.map((task) => {
-        const proposal = meeting.taskProposals.find((p: TaskProposal) => p.taskId === task.id)
-        if (proposal) {
-          return {
-            ...task,
-            proposedChanges: proposal,
-          }
+    const updatedTasks = tasks.map((task) => {
+      const proposal = meeting.taskProposals.find((p) => p.taskId === task.id)
+      if (proposal) {
+        return {
+          ...task,
+          proposedChanges: proposal,
         }
-        return task
-      })
+      }
+      return task
+    })
 
     setTasks(updatedTasks)
   }
@@ -457,10 +456,10 @@ export default function ProjectManager() {
     try {
       // Convert v0 updates to backend format
       const backendUpdate = convertV0ToBackendUpdate(taskId, updates, reason)
-      
+
       // Send update to backend
       await apiService.updateExcel([backendUpdate])
-      
+
       // Update local state
       setTasks((prev) =>
         prev.map((task) => {
@@ -491,53 +490,11 @@ export default function ProjectManager() {
           return task
         }),
       )
-      
-      console.log('Successfully updated task', taskId, 'in backend')
+
+      console.log("Successfully updated task", taskId, "in backend")
     } catch (error) {
-      console.error('Error updating task in backend:', error)
-      alert('Error updating task. Please try again.')
-    }
-  }
-
-  const handleReorderTasks = async (parentId: string, taskIds: string[]) => {
-    try {
-      // Create audit entries for the reorder
-      const auditEntries: AuditEntry[] = taskIds.map((taskId: string, index: number) => ({
-        id: `audit-${Date.now()}-reorder-${taskId}`,
-        timestamp: new Date(),
-        type: "manual",
-        field: "order",
-        oldValue: `Previous position in parent ${parentId}`,
-        newValue: `New position ${index + 1} in parent ${parentId}`,
-        reason: "Task reordered via drag and drop",
-      }))
-
-      // Update local state to reflect the new order
-      setTasks((prev) => {
-        const updatedTasks = [...prev]
-        
-        // Get all tasks that belong to this parent
-        const parentTasks = updatedTasks.filter(task => task.parentId === parentId && task.level === 1)
-        
-        // Reorder the tasks based on the new order
-        taskIds.forEach((taskId, newIndex) => {
-          const taskIndex = updatedTasks.findIndex(task => task.id === taskId)
-          if (taskIndex !== -1) {
-            // Add audit entry to the task
-            updatedTasks[taskIndex] = {
-              ...updatedTasks[taskIndex],
-              auditTrail: [...updatedTasks[taskIndex].auditTrail, auditEntries[newIndex]]
-            }
-          }
-        })
-
-        return updatedTasks
-      })
-
-      console.log('Successfully reordered tasks for parent', parentId)
-    } catch (error) {
-      console.error('Error reordering tasks:', error)
-      alert('Error reordering tasks. Please try again.')
+      console.error("Error updating task in backend:", error)
+      alert("Error updating task. Please try again.")
     }
   }
 
@@ -770,85 +727,17 @@ export default function ProjectManager() {
               </TabsList>
 
               <TabsContent value="gantt" className="space-y-4">
-                <Card className={themeClasses.card}>
-                  <CardHeader className={themeClasses.header}>
-                    <CardTitle>Project Timeline</CardTitle>
-                    <CardDescription className={currentTheme === "dark" ? "text-gray-300" : ""}>
-                      Hierarchical view of project tasks and their timelines
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {getVisibleTasks().map((task) => {
-                        const position = getTaskPosition(task)
-                        const isMainActivity = task.level === 0
-                        const hasChildren = tasks.some((t) => t.parentId === task.id)
-
-                        return (
-                          <div key={task.id} className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <div style={{ marginLeft: `${task.level * 20}px` }} className="flex items-center gap-2">
-                                  {isMainActivity && hasChildren && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-4 w-4 p-0"
-                                      onClick={() => toggleTaskExpansion(task.id)}
-                                    >
-                                      {task.isExpanded ? "−" : "+"}
-                                    </Button>
-                                  )}
-                                  {!isMainActivity && <div className="w-4" />}
-                                  <span className={`font-medium ${isMainActivity ? "text-lg" : "text-sm"}`}>
-                                    {task.name}
-                                  </span>
-                                </div>
-                                <Badge variant="outline" className={getStatusColor(task.status)}>
-                                  {task.status}
-                                </Badge>
-                                {task.proposedChanges && (
-                                  <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-                                    Pending Changes
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="text-muted-foreground">
-                                {formatDate(task.startDate)} - {formatDate(task.endDate)}
-                              </div>
-                            </div>
-                            <div
-                              className={`relative rounded ${currentTheme === "dark" ? "bg-gray-700" : "bg-gray-100"}`}
-                              style={{
-                                height: isMainActivity ? "32px" : "24px",
-                                marginLeft: `${task.level * 20}px`,
-                              }}
-                            >
-                              <div
-                                className={`absolute h-full rounded flex items-center justify-center text-white text-xs font-medium ${
-                                  isMainActivity
-                                    ? currentTheme === "modern"
-                                      ? "bg-gradient-to-r from-blue-600 to-purple-600"
-                                      : currentTheme === "dark"
-                                        ? "bg-blue-700"
-                                        : "bg-primary"
-                                    : currentTheme === "modern"
-                                      ? "bg-gradient-to-r from-blue-400 to-purple-400"
-                                      : currentTheme === "dark"
-                                        ? "bg-blue-500"
-                                        : "bg-primary/80"
-                                }`}
-                                style={position}
-                              >
-                                {task.progress > 0 && `${task.progress}%`}
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
+                <DynamicGanttChart
+                  tasks={getVisibleTasks()}
+                  allTasks={tasks}
+                  onTaskUpdate={handleTaskUpdate}
+                  onToggleExpansion={toggleTaskExpansion}
+                  getPriorityColor={getPriorityColor}
+                  getStatusColor={getStatusColor}
+                  formatDate={formatDate}
+                  theme={currentTheme}
+                  themeClasses={themeClasses}
+                />
               </TabsContent>
 
               <TabsContent value="list" className="space-y-4">
@@ -857,7 +746,6 @@ export default function ProjectManager() {
                   allTasks={tasks}
                   onTaskUpdate={handleTaskUpdate}
                   onToggleExpansion={toggleTaskExpansion}
-                  onReorderTasks={handleReorderTasks}
                   getPriorityColor={getPriorityColor}
                   getStatusColor={getStatusColor}
                   formatDate={formatDate}

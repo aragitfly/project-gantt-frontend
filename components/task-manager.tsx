@@ -19,7 +19,6 @@ import {
   User,
   ChevronRight,
   ChevronDown,
-  GripVertical,
 } from "lucide-react"
 import type { Task, DesignTheme } from "../app/page"
 
@@ -28,7 +27,6 @@ interface TaskManagerProps {
   allTasks: Task[]
   onTaskUpdate: (taskId: string, updates: Partial<Task>, reason: string) => void
   onToggleExpansion: (taskId: string) => void
-  onReorderTasks?: (parentId: string, taskIds: string[]) => void
   getPriorityColor: (priority: string) => string
   getStatusColor: (status: string) => string
   formatDate: (date: Date) => string
@@ -41,7 +39,6 @@ export function TaskManager({
   allTasks,
   onTaskUpdate,
   onToggleExpansion,
-  onReorderTasks,
   getPriorityColor,
   getStatusColor,
   formatDate,
@@ -50,8 +47,6 @@ export function TaskManager({
 }: TaskManagerProps) {
   const [editingTask, setEditingTask] = useState<string | null>(null)
   const [updateReason, setUpdateReason] = useState("")
-  const [draggedTask, setDraggedTask] = useState<string | null>(null)
-  const [dragOverTask, setDragOverTask] = useState<string | null>(null)
 
   // Debug logging
   console.log('=== TASK MANAGER DEBUG ===')
@@ -62,6 +57,7 @@ export function TaskManager({
   console.log('Sample tasks:', tasks.slice(0, 3).map(t => ({ name: t.name, level: t.level, isExpanded: t.isExpanded })))
   console.log('Sample allTasks:', allTasks.slice(0, 3).map(t => ({ name: t.name, level: t.level, parentId: t.parentId })))
   console.log('=== END TASK MANAGER DEBUG ===')
+
 
   const handleAcceptProposal = (task: Task) => {
     if (!task.proposedChanges) return
@@ -96,76 +92,6 @@ export function TaskManager({
     setUpdateReason("")
   }
 
-  // Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    setDraggedTask(taskId)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', taskId)
-  }
-
-  const handleDragOver = (e: React.DragEvent, taskId: string) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverTask(taskId)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    setDragOverTask(null)
-  }
-
-  const handleDrop = (e: React.DragEvent, targetTaskId: string) => {
-    e.preventDefault()
-    const draggedTaskId = e.dataTransfer.getData('text/plain')
-    
-    if (draggedTaskId === targetTaskId) {
-      setDraggedTask(null)
-      setDragOverTask(null)
-      return
-    }
-
-    // Find the parent of the target task
-    const targetTask = tasks.find(t => t.id === targetTaskId)
-    if (!targetTask || targetTask.level !== 1) {
-      setDraggedTask(null)
-      setDragOverTask(null)
-      return
-    }
-
-    const parentId = targetTask.parentId
-    if (!parentId || !onReorderTasks) {
-      setDraggedTask(null)
-      setDragOverTask(null)
-      return
-    }
-
-    // Get all sub-tasks of the same parent
-    const siblingTasks = tasks.filter(t => t.parentId === parentId && t.level === 1)
-    const draggedTaskIndex = siblingTasks.findIndex(t => t.id === draggedTaskId)
-    const targetTaskIndex = siblingTasks.findIndex(t => t.id === targetTaskId)
-
-    if (draggedTaskIndex === -1 || targetTaskIndex === -1) {
-      setDraggedTask(null)
-      setDragOverTask(null)
-      return
-    }
-
-    // Create new order
-    const newOrder = [...siblingTasks]
-    const [draggedItem] = newOrder.splice(draggedTaskIndex, 1)
-    newOrder.splice(targetTaskIndex, 0, draggedItem)
-
-    // Call the reorder function
-    onReorderTasks(parentId, newOrder.map(t => t.id))
-
-    setDraggedTask(null)
-    setDragOverTask(null)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedTask(null)
-    setDragOverTask(null)
-  }
-
   const getAuditIcon = (type: string) => {
     switch (type) {
       case "manual":
@@ -193,20 +119,21 @@ export function TaskManager({
   }
 
   const hasChildren = (taskId: string) => {
-    return allTasks.some(task => task.parentId === taskId)
+    return allTasks.some((t) => t.parentId === taskId)
   }
 
   const getChildrenSummary = (taskId: string) => {
-    const children = allTasks.filter(task => task.parentId === taskId)
-    const total = children.length
-    const completed = children.filter(child => child.status === "Completed").length
-    const inProgress = children.filter(child => child.status === "In Progress").length
-    const delayed = children.filter(child => child.status === "Delayed").length
-    const blocked = children.filter(child => child.status === "Blocked").length
-    const avgProgress = total > 0 ? Math.round(children.reduce((sum, child) => sum + child.progress, 0) / total) : 0
+    const children = allTasks.filter((t) => t.parentId === taskId)
+    if (children.length === 0) return null
+
+    const completed = children.filter((t) => t.status === "Completed").length
+    const inProgress = children.filter((t) => t.status === "In Progress").length
+    const delayed = children.filter((t) => t.status === "Delayed").length
+    const blocked = children.filter((t) => t.status === "Blocked").length
+    const avgProgress = Math.round(children.reduce((sum, t) => sum + t.progress, 0) / children.length)
 
     return {
-      total,
+      total: children.length,
       completed,
       inProgress,
       delayed,
@@ -217,29 +144,14 @@ export function TaskManager({
 
   const renderTask = (task: Task) => {
     const isMainActivity = task.level === 0
-    const isSubActivity = task.level === 1
     const childrenSummary = isMainActivity ? getChildrenSummary(task.id) : null
     const hasChildTasks = hasChildren(task.id)
-    const isDragging = draggedTask === task.id
-    const isDragOver = dragOverTask === task.id
 
     return (
       <div
         key={task.id}
-        draggable={isSubActivity}
-        onDragStart={(e) => isSubActivity && handleDragStart(e, task.id)}
-        onDragOver={(e) => isSubActivity && handleDragOver(e, task.id)}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => isSubActivity && handleDrop(e, task.id)}
-        onDragEnd={handleDragEnd}
-        className={`border rounded-lg space-y-4 transition-all duration-200 ${
-          theme === "dark" ? "border-gray-700" : ""
-        } ${
+        className={`border rounded-lg space-y-4 ${theme === "dark" ? "border-gray-700" : ""} ${
           isMainActivity ? "p-6 shadow-md" : "p-4 ml-8 border-l-4 border-l-blue-200"
-        } ${
-          isDragging ? "opacity-50 scale-95" : ""
-        } ${
-          isDragOver ? "border-blue-400 bg-blue-50" : ""
         }`}
         style={{
           backgroundColor: isMainActivity
@@ -253,9 +165,6 @@ export function TaskManager({
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
-              {isSubActivity && (
-                <GripVertical className="h-4 w-4 text-gray-400 cursor-grab active:cursor-grabbing" />
-              )}
               {isMainActivity && hasChildTasks && (
                 <Button
                   variant="ghost"
@@ -270,11 +179,6 @@ export function TaskManager({
               {isMainActivity && (
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                   Main Activity
-                </Badge>
-              )}
-              {isSubActivity && (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  Sub Activity
                 </Badge>
               )}
             </div>

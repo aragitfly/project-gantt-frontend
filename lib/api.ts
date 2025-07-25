@@ -1,24 +1,26 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Prefer an external URL if provided, otherwise use the built-in Next.js
+// route handlers under /api. Keeping the leading slash makes the URL absolute.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
 
 // Debug log to check environment variable
-console.log('API_BASE_URL:', API_BASE_URL)
-console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL)
+console.log("API_BASE_URL:", API_BASE_URL)
+console.log("NEXT_PUBLIC_API_URL:", process.env.NEXT_PUBLIC_API_URL)
 
 export interface BackendProject {
-  name: string;
-  item_id: string;
-  activity_type: string;
-  is_title: boolean;
-  start_date: string | null;
-  end_date: string | null;
-  team: string;
-  status: string;
-  completed: number;
+  name: string
+  item_id: string
+  activity_type: string
+  is_title: boolean
+  start_date: string | null
+  end_date: string | null
+  team: string
+  status: string
+  completed: number
 }
 
 export interface BackendResponse {
-  projects: BackendProject[];
-  message?: string;
+  projects: BackendProject[]
+  message?: string
 }
 
 export class ApiService {
@@ -30,11 +32,11 @@ export class ApiService {
 
   async uploadExcel(file: File): Promise<any> {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append("file", file)
 
     try {
       const response = await fetch(`${this.baseUrl}/upload-excel`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
       })
 
@@ -44,18 +46,18 @@ export class ApiService {
 
       return await response.json()
     } catch (error) {
-      console.error('Error uploading Excel file:', error)
+      console.error("Error uploading Excel file:", error)
       throw error
     }
   }
 
   async processAudio(audioBlob: Blob): Promise<any> {
     const formData = new FormData()
-    formData.append('audio_file', audioBlob, 'recording.webm')
+    formData.append("audio_file", audioBlob, "recording.webm")
 
     try {
       const response = await fetch(`${this.baseUrl}/process-audio`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
       })
 
@@ -65,7 +67,7 @@ export class ApiService {
 
       return await response.json()
     } catch (error) {
-      console.error('Error processing audio:', error)
+      console.error("Error processing audio:", error)
       throw error
     }
   }
@@ -73,9 +75,9 @@ export class ApiService {
   async updateExcel(updates: any[]): Promise<any> {
     try {
       const response = await fetch(`${this.baseUrl}/update-excel`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(updates),
       })
@@ -86,7 +88,7 @@ export class ApiService {
 
       return await response.json()
     } catch (error) {
-      console.error('Error updating Excel:', error)
+      console.error("Error updating Excel:", error)
       throw error
     }
   }
@@ -94,7 +96,7 @@ export class ApiService {
   async downloadExcel(): Promise<Blob> {
     try {
       const response = await fetch(`${this.baseUrl}/download-excel`, {
-        method: 'GET',
+        method: "GET",
       })
 
       if (!response.ok) {
@@ -103,8 +105,8 @@ export class ApiService {
 
       return await response.blob()
     } catch (error) {
-      console.error('Error downloading Excel:', error)
+      console.error("Error downloading Excel:", error)
       throw error
     }
   }
-} 
+}

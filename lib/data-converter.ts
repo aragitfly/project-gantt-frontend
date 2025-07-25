@@ -131,4 +131,4 @@ export function convertV0ToBackendUpdate(taskId: string, updates: Partial<Task>,
     new_progress: updates.progress,
     reason,
   };
-} 
+}
