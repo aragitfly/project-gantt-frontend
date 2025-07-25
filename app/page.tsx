@@ -74,9 +74,129 @@ export interface Meeting {
 
 export type DesignTheme = "default" | "modern" | "minimal" | "corporate" | "dark"
 
+// Demo meetings data to show AI processing results
+const demoMeetings: Meeting[] = [
+  {
+    id: "demo-meeting-1",
+    title: "Sprint Planning - Q1 2024",
+    date: new Date("2024-01-15T10:00:00"),
+    duration: 1860, // 31 minutes
+    transcript: `Sarah: Good morning everyone, let's start our sprint planning for Q1 2024. We have several key features to discuss.
+
+Mike: Thanks Sarah. I've been working on the user authentication system. It's about 80% complete, but I'm running into some issues with the password reset functionality.
+
+Lisa: On the frontend side, I've finished the dashboard mockups. The client approved them yesterday. I'm ready to start implementation once the API endpoints are ready.
+
+Tom: I can have the user management APIs ready by Wednesday. The database schema is already updated on staging.
+
+Sarah: Great. What about the mobile app progress?
+
+Lisa: The mobile wireframes are done. I estimate 2 weeks for the core features once we finalize the design system.
+
+Mike: I found a security vulnerability in the current auth flow. We need to address this before launch.
+
+Sarah: That's critical. Let's prioritize the security fix. Can you have it resolved by Friday?
+
+Mike: Yes, I'll work on it today and tomorrow.
+
+Tom: I'll help with testing the security patches.
+
+Sarah: Perfect. Let's also discuss the new reporting feature the client requested.`,
+    summary:
+      "Sprint planning meeting covering Q1 2024 priorities. Team discussed user authentication progress (80% complete), approved dashboard mockups, mobile app timeline (2 weeks for core features), and identified a critical security vulnerability that needs immediate attention. Key decisions made on prioritization and resource allocation.",
+    taskProposals: [
+      {
+        id: "proposal-1",
+        taskId: "1",
+        proposedStatus: "Blocked",
+        reason: "Security vulnerability discovered in authentication flow",
+        confidence: 0.9,
+        meetingId: "demo-meeting-1",
+        timestamp: new Date("2024-01-15T10:15:00"),
+      },
+      {
+        id: "proposal-2",
+        taskId: "2.1",
+        proposedStatus: "Completed",
+        reason: "Dashboard mockups approved by client",
+        confidence: 0.95,
+        meetingId: "demo-meeting-1",
+        timestamp: new Date("2024-01-15T10:20:00"),
+      },
+      {
+        id: "proposal-3",
+        taskId: "2.2",
+        proposedEndDate: new Date("2024-01-17"),
+        reason: "API endpoints needed earlier to unblock frontend development",
+        confidence: 0.8,
+        meetingId: "demo-meeting-1",
+        timestamp: new Date("2024-01-15T10:25:00"),
+      },
+    ],
+  },
+  {
+    id: "demo-meeting-2",
+    title: "Client Review - Dashboard Features",
+    date: new Date("2024-01-12T14:00:00"),
+    duration: 2156, // 35 minutes 56 seconds
+    transcript: `Jennifer: Thank you for joining us today. We're excited to show you the progress on the dashboard features.
+
+Client (John): Great, I'm looking forward to seeing what the team has built.
+
+Jennifer: Sarah will walk you through the new analytics dashboard, and then Mike will demo the user management features.
+
+Sarah: Thanks Jennifer. As you can see, we've implemented the real-time analytics you requested. The dashboard shows user engagement, conversion rates, and system performance metrics.
+
+Client (John): This looks fantastic. The charts are exactly what we envisioned. How's the performance with large datasets?
+
+Sarah: We've tested with up to 100,000 data points and response times are under 2 seconds. We're using efficient caching strategies.
+
+Client (John): Excellent. What about the mobile responsiveness?
+
+Sarah: The dashboard is fully responsive. Let me show you how it looks on tablet and mobile devices.
+
+Mike: Now I'll show you the user management system. Admins can create, edit, and deactivate users. We've also added role-based permissions.
+
+Client (John): Perfect. I noticed the export functionality we discussed - is that implemented?
+
+Mike: Yes, users can export data in CSV, Excel, and PDF formats. The reports include all the metrics you specified.
+
+Client (John): This is great work. I do have one concern about the color scheme. Can we make it more aligned with our brand colors?
+
+Sarah: Absolutely. I can update the theme to match your brand guidelines. Should take about a day.
+
+Client (John): Wonderful. When can we expect the beta version?
+
+Jennifer: Based on today's feedback, we can have the beta ready by next Friday.`,
+    summary:
+      "Client review meeting showcasing dashboard analytics and user management features. Client expressed satisfaction with real-time analytics, performance (sub-2 second response times), mobile responsiveness, and export functionality. Minor feedback on brand color alignment. Beta version scheduled for next Friday delivery.",
+    taskProposals: [
+      {
+        id: "proposal-4",
+        taskId: "3.1",
+        proposedStatus: "In Progress",
+        reason: "Client requested brand color alignment during review meeting",
+        confidence: 0.9,
+        meetingId: "demo-meeting-2",
+        timestamp: new Date("2024-01-12T14:30:00"),
+      },
+      {
+        id: "proposal-5",
+        taskId: "3.2",
+        proposedStatus: "Completed",
+        proposedProgress: 100,
+        reason: "Export functionality demo confirmed all requirements are met",
+        confidence: 0.85,
+        meetingId: "demo-meeting-2",
+        timestamp: new Date("2024-01-12T14:45:00"),
+      },
+    ],
+  },
+]
+
 export default function ProjectManager() {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [meetings, setMeetings] = useState<Meeting[]>(demoMeetings) // Initialize with demo meetings
   const [fileName, setFileName] = useState<string>("")
   const [activeTab, setActiveTab] = useState("gantt")
   const [currentTheme, setCurrentTheme] = useState<DesignTheme>("default")
@@ -436,7 +556,7 @@ export default function ProjectManager() {
   }
 
   const handleMeetingComplete = (meeting: Meeting) => {
-    setMeetings((prev) => [...prev, meeting])
+    setMeetings((prev) => [meeting, ...prev])
 
     const updatedTasks = tasks.map((task) => {
       const proposal = meeting.taskProposals.find((p) => p.taskId === task.id)
@@ -706,9 +826,7 @@ export default function ProjectManager() {
               themeClasses={themeClasses}
             />
 
-            {meetings.length > 0 && (
-              <MeetingSummary meetings={meetings} theme={currentTheme} themeClasses={themeClasses} />
-            )}
+            <MeetingSummary meetings={meetings} theme={currentTheme} themeClasses={themeClasses} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className={currentTheme === "dark" ? "bg-gray-800 border-gray-700" : ""}>
@@ -730,6 +848,7 @@ export default function ProjectManager() {
                 <DynamicGanttChart
                   tasks={getVisibleTasks()}
                   allTasks={tasks}
+                  meetings={meetings}
                   onTaskUpdate={handleTaskUpdate}
                   onToggleExpansion={toggleTaskExpansion}
                   getPriorityColor={getPriorityColor}
