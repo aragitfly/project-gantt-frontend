@@ -29,9 +29,9 @@ Next.js frontend for the Project Gantt Chart Manager application.
 
 2. **Environment Variables**
    Set the following environment variable in Vercel:
-   ```
+   \`\`\`
    NEXT_PUBLIC_API_URL=https://web-production-a8efc.up.railway.app
-   ```
+   \`\`\`
 
 3. **Deploy**
    - Vercel will automatically detect the Next.js project
@@ -41,20 +41,20 @@ Next.js frontend for the Project Gantt Chart Manager application.
 ### Local Development
 
 1. **Install dependencies**
-   ```bash
+   \`\`\`bash
    npm install
-   ```
+   \`\`\`
 
 2. **Set environment variables**
    Create a `.env.local` file:
-   ```
+   \`\`\`
    NEXT_PUBLIC_API_URL=http://localhost:8000
-   ```
+   \`\`\`
 
 3. **Run the development server**
-   ```bash
+   \`\`\`bash
    npm run dev
-   ```
+   \`\`\`
 
 ## Environment Variables
 
